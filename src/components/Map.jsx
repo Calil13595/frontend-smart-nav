@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Eye } from 'lucide-react';
+import { Eye, Camera } from 'lucide-react';
 import { UNAERP_CAMPUS_POIS } from '../services/api';
 
 // Fix para ícones padrão do Leaflet
@@ -78,6 +78,7 @@ export default function Map({
   onSelectOrigin,
   onSelectDestination,
   onOpenStreetView,
+  onOpenPanorama,
 }) {
   const mapContainer = useRef(null);
   const mapInstance = useRef(null);
@@ -161,8 +162,11 @@ export default function Map({
           <button id="btn-end-${poi.id}" style="background: #fbc02d; color: #1a237e; border: none; padding: 5px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; text-align: center;">
             🎯 Ir para cá
           </button>
-          <button id="btn-sv-${poi.id}" style="background: #1a237e; color: white; border: none; padding: 5px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; text-align: center; display: flex; align-items: center; justify-content: center; gap: 4px;">
-            📷 Street View 360°
+          <button id="btn-pano-${poi.id}" style="background: #1a237e; color: #fbc02d; border: none; padding: 5px 10px; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer; text-align: center; display: flex; align-items: center; justify-content: center; gap: 4px;">
+            📸 Tour 360° (Foto)
+          </button>
+          <button id="btn-sv-${poi.id}" style="background: #374151; color: white; border: none; padding: 5px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; text-align: center; display: flex; align-items: center; justify-content: center; gap: 4px;">
+            📷 Street View (Entrada)
           </button>
         </div>
       `;
@@ -172,6 +176,7 @@ export default function Map({
       marker.on('popupopen', () => {
         const startBtn = document.getElementById(`btn-start-${poi.id}`);
         const endBtn = document.getElementById(`btn-end-${poi.id}`);
+        const panoBtn = document.getElementById(`btn-pano-${poi.id}`);
         const svBtn = document.getElementById(`btn-sv-${poi.id}`);
 
         if (startBtn && onSelectOrigin) {
@@ -183,6 +188,12 @@ export default function Map({
         if (endBtn && onSelectDestination) {
           endBtn.onclick = () => {
             onSelectDestination(poi);
+            marker.closePopup();
+          };
+        }
+        if (panoBtn && onOpenPanorama) {
+          panoBtn.onclick = () => {
+            onOpenPanorama(poi);
             marker.closePopup();
           };
         }
@@ -260,7 +271,7 @@ export default function Map({
         maxZoom: 18,
       });
     }
-  }, [startPoint, endPoint, routes, pois, onSelectOrigin, onSelectDestination, onOpenStreetView]);
+  }, [startPoint, endPoint, routes, pois, onSelectOrigin, onSelectDestination, onOpenStreetView, onOpenPanorama]);
 
   return (
     <div className="relative w-full h-full">
@@ -271,15 +282,26 @@ export default function Map({
         aria-label="Mapa interativo do Campus UNAERP"
       />
 
-      {/* Botão flutuante para abrir Street View 360° */}
-      <button
-        onClick={() => onOpenStreetView && onOpenStreetView(endPoint || startPoint || { name: 'UNAERP Campus', latitude: -21.20022, longitude: -47.77805 })}
-        className="absolute bottom-6 left-4 z-[999] glass px-3.5 py-2.5 rounded-xl shadow-lg border border-unaerp-blue/20 hover:bg-unaerp-blue hover:text-white text-unaerp-blue font-semibold text-xs flex items-center gap-2 transition active:scale-95"
-        title="Ver Campus em 360°"
-      >
-        <Eye size={16} className="text-unaerp-yellow" />
-        <span>Street View 360°</span>
-      </button>
+      {/* Botões flutuantes para Tour 360° e Street View */}
+      <div className="absolute bottom-6 left-4 z-[999] flex items-center gap-2">
+        <button
+          onClick={() => onOpenPanorama && onOpenPanorama(endPoint || startPoint || pois[0])}
+          className="glass px-3.5 py-2.5 rounded-xl shadow-lg border border-unaerp-yellow/60 hover:bg-unaerp-yellow hover:text-unaerp-blue text-unaerp-blue font-bold text-xs flex items-center gap-1.5 transition active:scale-95 bg-white/95"
+          title="Abrir Tour Virtual 360° com fotos do campus"
+        >
+          <Camera size={16} className="text-unaerp-yellow-dark" />
+          <span>Tour 360°</span>
+        </button>
+
+        <button
+          onClick={() => onOpenStreetView && onOpenStreetView(endPoint || startPoint || { name: 'UNAERP Campus', latitude: -21.20022, longitude: -47.77805 })}
+          className="glass px-3.5 py-2.5 rounded-xl shadow-lg border border-unaerp-blue/20 hover:bg-unaerp-blue hover:text-white text-unaerp-blue font-semibold text-xs flex items-center gap-1.5 transition active:scale-95 bg-white/95"
+          title="Ver Entradas no Google Street View"
+        >
+          <Eye size={16} className="text-unaerp-yellow" />
+          <span>Street View</span>
+        </button>
+      </div>
     </div>
   );
 }

@@ -3,6 +3,7 @@ import {
   Clock, Ruler, Shield, Accessibility, ChevronUp, ChevronDown,
   Zap, TreePine, Scale, X, Navigation,
 } from 'lucide-react';
+import PanoramaButton from './PanoramaButton';
 
 // ============================================================================
 // RoutePanel — Bottom sheet com rotas calculadas
@@ -26,7 +27,14 @@ const getRouteType = (route) => {
   return 'balanced';
 };
 
-export default function RoutePanel({ routes, origin, destination, onClose, onSelectRoute }) {
+export default function RoutePanel({
+  routes,
+  origin,
+  destination,
+  onClose,
+  onSelectRoute,
+  onOpenPanorama,
+}) {
   const [expanded, setExpanded] = useState(true);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [showSteps, setShowSteps] = useState(false);
@@ -209,6 +217,20 @@ export default function RoutePanel({ routes, origin, destination, onClose, onSel
                   Dificuldade: {selected.difficulty === 'low' ? '🟢 Fácil' :
                     selected.difficulty === 'medium' ? '🟡 Média' : '🔴 Difícil'}
                 </span>
+              </div>
+            )}
+
+            {/* Destino: Ver em 360° */}
+            {destination && (
+              <div className="mb-4 p-3 bg-unaerp-blue/5 rounded-2xl border border-unaerp-blue/15 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-unaerp-blue">Destino: {destination.name}</p>
+                  <p className="text-[11px] text-gray-500 truncate">Visualize o local antes de caminhar</p>
+                </div>
+                <PanoramaButton
+                  poi={destination}
+                  onClick={() => onOpenPanorama?.(destination)}
+                />
               </div>
             )}
 
