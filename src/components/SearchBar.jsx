@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { Search, MapPin, Navigation, X, ArrowRightLeft, Loader } from 'lucide-react';
-import { searchPOIs } from '../services/api';
+import { Search, MapPin, Navigation, X, ArrowRightLeft, Loader, Eye, Sparkles } from 'lucide-react';
+import { searchPOIs, UNAERP_CAMPUS_POIS } from '../services/api';
 
 // ============================================================================
-// SearchBar — Barra de busca floating com autocomplete
+// SearchBar — Barra de busca floating com busca de partida, destino e sugestões
 // ============================================================================
 export default function SearchBar({
   onSelectOrigin,
@@ -12,6 +12,7 @@ export default function SearchBar({
   selectedOrigin,
   selectedDestination,
   loading,
+  onOpenStreetView,
 }) {
   const [fromQuery, setFromQuery] = useState('');
   const [toQuery, setToQuery] = useState('');
@@ -19,40 +20,42 @@ export default function SearchBar({
   const [toSuggestions, setToSuggestions] = useState([]);
   const [showFrom, setShowFrom] = useState(false);
   const [showTo, setShowTo] = useState(false);
-  const [expanded, setExpanded] = useState(false);
 
   const fromRef = useRef(null);
   const toRef = useRef(null);
 
-  // Debounced search — origem
+  // Sincroniza query com pontos selecionados externamente (ex: clique no mapa)
   useEffect(() => {
-    if (fromQuery.length < 2) {
-      setFromSuggestions([]);
-      return;
+    if (selectedOrigin) {
+      setFromQuery(selectedOrigin.name);
     }
+  }, [selectedOrigin]);
+
+  useEffect(() => {
+    if (selectedDestination) {
+      setToQuery(selectedDestination.name);
+    }
+  }, [selectedDestination]);
+
+  // Carrega sugestões de partida (busca instantânea local + backend)
+  useEffect(() => {
     const timer = setTimeout(async () => {
       const results = await searchPOIs(fromQuery);
       setFromSuggestions(results || []);
-      setShowFrom(true);
-    }, 300);
+    }, 150);
     return () => clearTimeout(timer);
   }, [fromQuery]);
 
-  // Debounced search — destino
+  // Carrega sugestões de destino
   useEffect(() => {
-    if (toQuery.length < 2) {
-      setToSuggestions([]);
-      return;
-    }
     const timer = setTimeout(async () => {
       const results = await searchPOIs(toQuery);
       setToSuggestions(results || []);
-      setShowTo(true);
-    }, 300);
+    }, 150);
     return () => clearTimeout(timer);
   }, [toQuery]);
 
-  // Fechar suggestions ao clicar fora
+  // Fechar sugestões ao clicar fora
   useEffect(() => {
     const handleClick = (e) => {
       if (fromRef.current && !fromRef.current.contains(e.target)) setShowFrom(false);
@@ -70,10 +73,6 @@ export default function SearchBar({
     setFromQuery(poi.name);
     setShowFrom(false);
     onSelectOrigin(poi);
-    if (!selectedDestination) {
-      setExpanded(true);
-      setTimeout(() => toRef.current?.querySelector('input')?.focus(), 100);
-    }
   };
 
   const selectTo = (poi) => {
@@ -94,16 +93,12 @@ export default function SearchBar({
   const handleClear = () => {
     setFromQuery('');
     setToQuery('');
-    setFromSuggestions([]);
-    setToSuggestions([]);
     onSelectOrigin(null);
     onSelectDestination(null);
-    setExpanded(false);
   };
 
   const canCalculate = selectedOrigin && selectedDestination && !loading;
 
-  // Tipo → ícone emoji
   const typeEmoji = (type) => {
     const map = {
       classroom: '🏫',
@@ -114,178 +109,233 @@ export default function SearchBar({
       restroom: '🚻',
       parking: '🅿️',
       entrance: '🚪',
-      elevator: '🛗',
-      admin: '🏢',
+      health: '🏥',
+      sports: '⚽',
     };
     return map[type] || '📍';
   };
 
+  // Pontos de atalho rápido
+  const quickPois = [
+    { label: 'Portaria', id: 'unaerp-portaria-1' },
+    { label: 'Biblioteca', id: 'unaerp-biblioteca' },
+    { label: 'Bloco A', id: 'unaerp-bloco-a' },
+    { label: 'Bloco B', id: 'unaerp-bloco-b' },
+    { label: 'Bloco C', id: 'unaerp-bloco-c' },
+    { label: 'Cantina', id: 'unaerp-cantina' },
+  ];
+
+  const handleQuickSelect = (poiId) => {
+    const found = UNAERP_CAMPUS_POIS.find((p) => p.id === poiId);
+    if (!found) return;
+
+    if (!selectedOrigin) {
+      selectFrom(found);
+    } else {
+      selectTo(found);
+    }
+  };
+
   return (
-    <div className="absolute top-4 left-4 right-4 z-[1000] animate-slide-down">
-      <div className="glass rounded-2xl shadow-xl overflow-visible">
-        {/* Header */}
-        <div className="px-4 py-3 flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-unaerp-blue flex items-center justify-center flex-shrink-0">
-            <Navigation size={16} className="text-unaerp-yellow" />
+    <div className="absolute top-4 left-4 right-4 z-[1000] max-w-xl mx-auto animate-slide-down">
+      <div className="glass rounded-2xl shadow-xl overflow-visible border border-white/40">
+        {/* Header da barra de busca */}
+        <div className="px-4 py-2.5 flex items-center justify-between border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-full bg-unaerp-blue flex items-center justify-center flex-shrink-0">
+              <Navigation size={14} className="text-unaerp-yellow" />
+            </div>
+            <div>
+              <h1 className="text-xs font-bold text-unaerp-blue tracking-tight">
+                Campus UNAERP — Ribeirânia
+              </h1>
+            </div>
           </div>
-          <h1 className="text-sm font-bold text-unaerp-blue tracking-tight flex-1">
-            Campus UNAERP
-          </h1>
-          {(fromQuery || toQuery) && (
-            <button
-              onClick={handleClear}
-              className="p-1.5 rounded-full hover:bg-gray-100 transition"
-              aria-label="Limpar busca"
-            >
-              <X size={16} className="text-gray-400" />
-            </button>
-          )}
+
+          <div className="flex items-center gap-1">
+            {onOpenStreetView && (
+              <button
+                onClick={() => onOpenStreetView(selectedDestination || selectedOrigin)}
+                className="px-2.5 py-1 rounded-lg text-xs font-medium text-unaerp-blue bg-unaerp-blue/10 hover:bg-unaerp-blue/20 flex items-center gap-1 transition"
+                title="Abrir Street View 360°"
+              >
+                <Eye size={13} className="text-unaerp-blue" />
+                <span className="hidden sm:inline">Street View</span>
+              </button>
+            )}
+
+            {(fromQuery || toQuery) && (
+              <button
+                onClick={handleClear}
+                className="p-1 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition"
+                aria-label="Limpar campos"
+                title="Limpar campos"
+              >
+                <X size={15} />
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* Busca: Origem */}
-        <div className="px-4 pb-2" ref={fromRef}>
-          <div className="relative">
-            <div className="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-2.5 border border-gray-200 focus-within:border-unaerp-blue focus-within:ring-2 focus-within:ring-unaerp-blue/20 transition">
-              <div className="w-3 h-3 rounded-full bg-green-500 flex-shrink-0" />
+        {/* Inputs de Partida e Destino */}
+        <div className="p-3 space-y-2">
+          {/* Campo: Partida */}
+          <div className="relative" ref={fromRef}>
+            <div className="flex items-center gap-2 bg-white/90 rounded-xl px-3 py-2 border border-gray-200 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/20 transition shadow-sm">
+              <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 flex-shrink-0" />
               <input
                 type="text"
                 value={fromQuery}
                 onChange={(e) => {
                   setFromQuery(e.target.value);
-                  if (selectedOrigin) onSelectOrigin(null);
+                  if (selectedOrigin && selectedOrigin.name !== e.target.value) {
+                    onSelectOrigin(null);
+                  }
                 }}
                 onFocus={() => {
-                  setExpanded(true);
-                  if (fromQuery.length >= 2) setShowFrom(true);
+                  setShowFrom(true);
+                  setShowTo(false);
                 }}
-                placeholder="De onde?"
+                placeholder="De onde? (ex: Portaria, Bloco A, Cantina)"
                 className="flex-1 bg-transparent text-sm text-gray-800 placeholder:text-gray-400 outline-none"
                 aria-label="Local de partida"
               />
               {selectedOrigin && (
-                <span className="text-xs text-green-600 font-medium">✓</span>
+                <span className="text-xs text-emerald-600 font-bold bg-emerald-50 px-1.5 py-0.5 rounded">
+                  OK
+                </span>
               )}
             </div>
 
-            {/* Suggestions: Origem */}
+            {/* Sugestões de Partida */}
             {showFrom && fromSuggestions.length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-1 glass rounded-xl shadow-lg max-h-48 overflow-y-auto z-50">
+              <div className="absolute top-full left-0 right-0 mt-1 glass rounded-xl shadow-xl max-h-56 overflow-y-auto z-50 border border-gray-100">
+                <div className="px-3 py-1.5 bg-gray-50 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+                  Selecione o ponto de partida
+                </div>
                 {fromSuggestions.map((poi, i) => (
                   <button
                     key={poi.id || i}
                     onClick={() => selectFrom(poi)}
-                    className="w-full text-left px-3 py-2.5 hover:bg-unaerp-blue/5 flex items-center gap-2.5 transition border-b border-gray-100 last:border-0"
+                    className="w-full text-left px-3 py-2 hover:bg-unaerp-blue/10 flex items-center gap-2.5 transition border-b border-gray-50 last:border-0"
                   >
-                    <span className="text-lg">{typeEmoji(poi.type)}</span>
+                    <span className="text-base">{typeEmoji(poi.type)}</span>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-800 truncate">{poi.name}</p>
-                      <p className="text-xs text-gray-400">{poi.type}</p>
+                      <p className="text-sm font-semibold text-gray-800 truncate">{poi.name}</p>
+                      <p className="text-xs text-gray-500 truncate">{poi.description}</p>
                     </div>
                   </button>
                 ))}
               </div>
             )}
           </div>
-        </div>
 
-        {/* Busca: Destino (expandível) */}
-        {expanded && (
-          <div className="px-4 pb-2 animate-fade-in" ref={toRef}>
-            {/* Swap button */}
-            <div className="flex justify-center -mt-1 mb-1">
-              <button
-                onClick={handleSwap}
-                className="p-1 rounded-full hover:bg-gray-100 transition"
-                aria-label="Trocar origem e destino"
-                disabled={!selectedOrigin && !selectedDestination}
-              >
-                <ArrowRightLeft size={14} className="text-gray-400" />
-              </button>
-            </div>
-
-            <div className="relative">
-              <div className="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-2.5 border border-gray-200 focus-within:border-unaerp-yellow focus-within:ring-2 focus-within:ring-unaerp-yellow/20 transition">
-                <div className="w-3 h-3 rounded-full bg-unaerp-yellow flex-shrink-0" />
-                <input
-                  type="text"
-                  value={toQuery}
-                  onChange={(e) => {
-                    setToQuery(e.target.value);
-                    if (selectedDestination) onSelectDestination(null);
-                  }}
-                  onFocus={() => {
-                    if (toQuery.length >= 2) setShowTo(true);
-                  }}
-                  placeholder="Para onde?"
-                  className="flex-1 bg-transparent text-sm text-gray-800 placeholder:text-gray-400 outline-none"
-                  aria-label="Local de destino"
-                />
-                {selectedDestination && (
-                  <span className="text-xs text-unaerp-yellow font-medium">✓</span>
-                )}
-              </div>
-
-              {/* Suggestions: Destino */}
-              {showTo && toSuggestions.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-1 glass rounded-xl shadow-lg max-h-48 overflow-y-auto z-50">
-                  {toSuggestions.map((poi, i) => (
-                    <button
-                      key={poi.id || i}
-                      onClick={() => selectTo(poi)}
-                      className="w-full text-left px-3 py-2.5 hover:bg-unaerp-yellow/10 flex items-center gap-2.5 transition border-b border-gray-100 last:border-0"
-                    >
-                      <span className="text-lg">{typeEmoji(poi.type)}</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-800 truncate">{poi.name}</p>
-                        <p className="text-xs text-gray-400">{poi.type}</p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Botão calcular rota */}
-        {expanded && (
-          <div className="px-4 pb-4 pt-2 animate-fade-in">
+          {/* Botão de Inverter */}
+          <div className="flex items-center justify-between px-1">
+            <span className="text-[11px] text-gray-400">Rota a pé pelo campus</span>
             <button
-              onClick={onCalculateRoute}
-              disabled={!canCalculate}
-              className={`
-                w-full py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all
-                ${canCalculate
-                  ? 'bg-unaerp-blue text-white hover:bg-unaerp-blue-light active:scale-[0.98] shadow-lg shadow-unaerp-blue/30'
-                  : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                }
-              `}
-              aria-label="Calcular rota"
+              onClick={handleSwap}
+              disabled={!selectedOrigin && !selectedDestination}
+              className="p-1 rounded-full hover:bg-gray-100 text-gray-400 hover:text-unaerp-blue transition disabled:opacity-40"
+              title="Inverter partida e destino"
             >
-              {loading ? (
-                <>
-                  <Loader size={18} className="animate-spin" />
-                  Calculando...
-                </>
-              ) : (
-                <>
-                  <Search size={18} />
-                  Calcular Rota
-                </>
-              )}
+              <ArrowRightLeft size={13} />
             </button>
           </div>
-        )}
 
-        {/* Tap para expandir */}
-        {!expanded && !fromQuery && (
+          {/* Campo: Destino */}
+          <div className="relative" ref={toRef}>
+            <div className="flex items-center gap-2 bg-white/90 rounded-xl px-3 py-2 border border-gray-200 focus-within:border-unaerp-yellow focus-within:ring-2 focus-within:ring-unaerp-yellow/30 transition shadow-sm">
+              <div className="w-2.5 h-2.5 rounded-full bg-unaerp-yellow flex-shrink-0" />
+              <input
+                type="text"
+                value={toQuery}
+                onChange={(e) => {
+                  setToQuery(e.target.value);
+                  if (selectedDestination && selectedDestination.name !== e.target.value) {
+                    onSelectDestination(null);
+                  }
+                }}
+                onFocus={() => {
+                  setShowTo(true);
+                  setShowFrom(false);
+                }}
+                placeholder="Para onde? (ex: Biblioteca, Bloco C, Teatro)"
+                className="flex-1 bg-transparent text-sm text-gray-800 placeholder:text-gray-400 outline-none"
+                aria-label="Local de destino"
+              />
+              {selectedDestination && (
+                <span className="text-xs text-unaerp-yellow-dark font-bold bg-yellow-50 px-1.5 py-0.5 rounded">
+                  OK
+                </span>
+              )}
+            </div>
+
+            {/* Sugestões de Destino */}
+            {showTo && toSuggestions.length > 0 && (
+              <div className="absolute top-full left-0 right-0 mt-1 glass rounded-xl shadow-xl max-h-56 overflow-y-auto z-50 border border-gray-100">
+                <div className="px-3 py-1.5 bg-gray-50 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+                  Selecione o destino
+                </div>
+                {toSuggestions.map((poi, i) => (
+                  <button
+                    key={poi.id || i}
+                    onClick={() => selectTo(poi)}
+                    className="w-full text-left px-3 py-2 hover:bg-unaerp-yellow/15 flex items-center gap-2.5 transition border-b border-gray-50 last:border-0"
+                  >
+                    <span className="text-base">{typeEmoji(poi.type)}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-800 truncate">{poi.name}</p>
+                      <p className="text-xs text-gray-500 truncate">{poi.description}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Atalhos rápidos de POIs */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pt-1 pb-0.5 text-xs">
+            <span className="text-gray-400 text-[11px] flex-shrink-0 flex items-center gap-1">
+              <Sparkles size={11} className="text-unaerp-yellow-dark" /> Atalhos:
+            </span>
+            {quickPois.map((qp) => (
+              <button
+                key={qp.id}
+                onClick={() => handleQuickSelect(qp.id)}
+                className="px-2 py-0.5 rounded-md bg-gray-100/80 hover:bg-unaerp-blue hover:text-white text-gray-700 transition whitespace-nowrap text-[11px]"
+              >
+                {qp.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Botão Calcular Rota */}
           <button
-            onClick={() => setExpanded(true)}
-            className="w-full px-4 pb-3 text-xs text-gray-400 text-center"
+            onClick={onCalculateRoute}
+            disabled={!canCalculate}
+            className={`
+              w-full py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-md
+              ${canCalculate
+                ? 'bg-unaerp-blue text-white hover:bg-unaerp-blue-light active:scale-[0.99] cursor-pointer shadow-unaerp-blue/20'
+                : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+              }
+            `}
+            aria-label="Calcular rota pelo campus"
           >
-            Toque para buscar destino →
+            {loading ? (
+              <>
+                <Loader size={16} className="animate-spin text-unaerp-yellow" />
+                <span>Calculando trajeto...</span>
+              </>
+            ) : (
+              <>
+                <Search size={16} />
+                <span>{canCalculate ? 'Calcular Rota Agora' : 'Selecione Partida e Destino'}</span>
+              </>
+            )}
           </button>
-        )}
+        </div>
       </div>
     </div>
   );
