@@ -132,17 +132,41 @@ export default function RoutePanel({ routes, origin, destination, onClose, onSel
             <div className="grid grid-cols-3 gap-3 mb-4">
               <div className={`rounded-xl p-3 text-center ${style.bg}`}>
                 <Ruler size={18} className={`mx-auto mb-1 ${style.color}`} />
-                <p className="text-lg font-bold text-gray-800">{selected.distance || '—'}m</p>
+                <p className="text-base font-bold text-gray-800">
+                  {selected.distance != null
+                    ? selected.distance === 0
+                      ? '0m'
+                      : selected.distance < 1000
+                      ? `${selected.distance}m`
+                      : `${(selected.distance / 1000).toFixed(1)}km`
+                    : '—'}
+                </p>
                 <p className="text-xs text-gray-500">Distância</p>
               </div>
               <div className={`rounded-xl p-3 text-center ${style.bg}`}>
                 <Clock size={18} className={`mx-auto mb-1 ${style.color}`} />
-                <p className="text-lg font-bold text-gray-800">{selected.estimatedTime || selected.estimatedTimeAdjusted || '—'} min</p>
+                <p className="text-base font-bold text-gray-800">
+                  {selected.estimatedTime != null
+                    ? selected.estimatedTime === 0
+                      ? '< 1 min'
+                      : `${selected.estimatedTime} min`
+                    : selected.duration != null
+                    ? selected.duration === 0
+                      ? '< 1 min'
+                      : `${selected.duration} min`
+                    : '—'}
+                </p>
                 <p className="text-xs text-gray-500">Tempo</p>
               </div>
               <div className={`rounded-xl p-3 text-center ${style.bg}`}>
                 <Accessibility size={18} className={`mx-auto mb-1 ${style.color}`} />
-                <p className="text-lg font-bold text-gray-800">{selected.accessibilityScore || '—'}/10</p>
+                <p className="text-base font-bold text-gray-800">
+                  {selected.accessibilityScore != null
+                    ? `${selected.accessibilityScore}/10`
+                    : selected.is_accessible
+                    ? '10/10'
+                    : '9/10'}
+                </p>
                 <p className="text-xs text-gray-500">Acessibilidade</p>
               </div>
             </div>

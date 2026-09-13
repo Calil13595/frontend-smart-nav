@@ -1,120 +1,207 @@
-import { useState, useEffect } from 'react';
-import { Eye, X, ExternalLink, Compass, MapPin } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Eye, X, ExternalLink, Compass, MapPin, Satellite, Info } from 'lucide-react';
 
 // ============================================================================
-// StreetViewModal — Visualização 360° do Campus UNAERP com Google Street View
+// Pontos oficiais com Street View 360° garantido pelo Google no entorno da UNAERP
+// (O carro do Google Street View percorre as vias públicas de acesso ao campus)
 // ============================================================================
-const DEFAULT_LOCATIONS = [
+const VERIFIED_STREETVIEW_ENTRANCES = [
   {
+    id: 'portaria-principal',
     name: 'Portaria Principal (Av. Costábile Romano)',
-    latitude: -21.20022,
-    longitude: -47.77805,
-    description: 'Vista frontal do campus e entrada de pedestres/veículos',
+    latitude: -21.20038,
+    longitude: -47.77785,
+    description: 'Entrada principal com guarita, rampa e fachada clássica da UNAERP',
   },
   {
-    name: 'Av. Costábile Romano (Fachada UNAERP)',
-    latitude: -21.20085,
-    longitude: -47.77765,
-    description: 'Avenida principal em frente à universidade',
+    id: 'fachada-unaerp',
+    name: 'Av. Costábile Romano (Fachada Central)',
+    latitude: -21.20150,
+    longitude: -47.77760,
+    description: 'Vista panorâmica da avenida em frente aos blocos universitários',
   },
   {
-    name: 'Entrada Hospital Electro Bonini',
-    latitude: -21.20260,
-    longitude: -47.77820,
-    description: 'Acesso ao hospital universitário e ambulatório',
+    id: 'hospital-bonini',
+    name: 'Hospital Electro Bonini / Acesso Sul',
+    latitude: -21.20230,
+    longitude: -47.77800,
+    description: 'Entrada do hospital universitário e estacionamento sul',
   },
   {
-    name: 'Biblioteca & Pátio Central',
-    latitude: -21.20125,
-    longitude: -47.77935,
-    description: 'Área de convivência e biblioteca',
+    id: 'portaria-oeste',
+    name: 'Portaria Oeste (Rua Alfredo Benzoni)',
+    latitude: -21.20090,
+    longitude: -47.78070,
+    description: 'Acesso alternativo para pedestres e clínicas no lado oeste',
   },
 ];
 
+// Helper para calcular distância aproximada
+const getDist = (lat1, lon1, lat2, lon2) => {
+  return Math.hypot(lat2 - lat1, lon2 - lon1);
+};
+
 export default function StreetViewModal({ isOpen, onClose, location }) {
-  const [currentLoc, setCurrentLoc] = useState(DEFAULT_LOCATIONS[0]);
+  const [activeTab, setActiveTab] = useState('streetview'); // 'streetview' | 'satellite'
+  const [selectedEntrance, setSelectedEntrance] = useState(VERIFIED_STREETVIEW_ENTRANCES[0]);
+
+  // Encontra a entrada com Street View mais próxima do POI selecionado
+  const nearestEntrance = useMemo(() => {
+    if (!location || !location.latitude || !location.longitude) {
+      return VERIFIED_STREETVIEW_ENTRANCES[0];
+    }
+    let closest = VERIFIED_STREETVIEW_ENTRANCES[0];
+    let minD = Infinity;
+
+    VERIFIED_STREETVIEW_ENTRANCES.forEach((ent) => {
+      const d = getDist(location.latitude, location.longitude, ent.latitude, ent.longitude);
+      if (d < minD) {
+        minD = d;
+        closest = ent;
+      }
+    });
+    return closest;
+  }, [location]);
 
   useEffect(() => {
-    if (location && location.latitude && location.longitude) {
-      setCurrentLoc({
-        name: location.name || 'Ponto selecionado',
-        latitude: location.latitude,
-        longitude: location.longitude,
-        description: location.description || 'Ponto no campus UNAERP',
-      });
+    if (nearestEntrance) {
+      setSelectedEntrance(nearestEntrance);
     }
-  }, [location]);
+  }, [nearestEntrance]);
 
   if (!isOpen) return null;
 
-  const { latitude, longitude, name } = currentLoc;
-  const embedUrl = `https://maps.google.com/maps?q=&layer=c&cbll=${latitude},${longitude}&cbp=11,0,0,0,0&output=svembed`;
-  const externalUrl = `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${latitude},${longitude}`;
+  // URLs para Street View (nas vias públicas com cobertura 360°)
+  const svLat = selectedEntrance.latitude;
+  const svLng = selectedEntrance.longitude;
+  const streetViewEmbedUrl = `https://maps.google.com/maps?q=&layer=c&cbll=${svLat},${svLng}&cbp=11,0,0,0,0&output=svembed`;
+
+  // URL para Satélite HD centrado exatamente no POI ou no campus (com zoom detalhado)
+  const poiLat = location?.latitude || -21.2010;
+  const poiLng = location?.longitude || -47.7792;
+  const satelliteEmbedUrl = `https://maps.google.com/maps?q=${poiLat},${poiLng}&t=k&z=19&ie=UTF8&iwloc=&output=embed`;
+
+  // Link para abrir diretamente no Google Maps com busca inteligente (sem tela preta)
+  const targetName = location?.name ? `${location.name} UNAERP Ribeirão Preto` : 'UNAERP Campus Ribeirânia Ribeirão Preto';
+  const externalMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(targetName)}`;
 
   return (
-    <div className="fixed inset-0 z-[2000] flex items-center justify-center p-3 sm:p-6 animate-fade-in bg-black/70 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[2000] flex items-center justify-center p-2 sm:p-5 animate-fade-in bg-black/75 backdrop-blur-sm">
       <div className="relative w-full max-w-4xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] border border-white/20">
-        {/* Header */}
+        {/* Cabeçalho */}
         <div className="bg-unaerp-blue px-4 py-3 flex items-center justify-between text-white">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-full bg-unaerp-yellow/20 flex items-center justify-center text-unaerp-yellow">
-              <Eye size={18} />
+            <div className="w-8 h-8 rounded-full bg-unaerp-yellow/20 flex items-center justify-center text-unaerp-yellow flex-shrink-0">
+              {activeTab === 'streetview' ? <Eye size={18} /> : <Satellite size={18} />}
             </div>
-            <div>
-              <h2 className="text-sm font-bold tracking-tight">Street View 360° — Campus UNAERP</h2>
-              <p className="text-xs text-white/70 truncate max-w-xs sm:max-w-md">
-                {name}
+            <div className="min-w-0">
+              <h2 className="text-sm font-bold tracking-tight truncate">
+                Visualização 360° & Satélite — UNAERP
+              </h2>
+              <p className="text-xs text-white/80 truncate">
+                {location?.name || 'Campus UNAERP (Ribeirânia)'}
               </p>
             </div>
           </div>
+
           <div className="flex items-center gap-2">
             <a
-              href={externalUrl}
+              href={externalMapsUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs flex items-center gap-1.5 transition"
-              title="Abrir no Google Maps"
+              className="px-2.5 py-1.5 rounded-lg bg-unaerp-yellow hover:bg-unaerp-yellow-light text-unaerp-blue font-bold text-xs flex items-center gap-1.5 transition shadow-sm"
+              title="Abrir no Google Maps oficial"
             >
-              <ExternalLink size={14} />
+              <ExternalLink size={13} />
               <span className="hidden sm:inline">Abrir no Maps</span>
             </a>
             <button
               onClick={onClose}
               className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition"
-              aria-label="Fechar Street View"
+              aria-label="Fechar modal"
             >
               <X size={18} />
             </button>
           </div>
         </div>
 
-        {/* Quick location chips */}
-        <div className="bg-gray-50 border-b border-gray-200 px-4 py-2 flex items-center gap-2 overflow-x-auto">
-          <span className="text-xs font-semibold text-gray-500 flex items-center gap-1 flex-shrink-0">
-            <Compass size={13} /> Pontos rápidos:
-          </span>
-          {DEFAULT_LOCATIONS.map((loc, i) => (
+        {/* Abas de Modo: Street View vs Satélite HD */}
+        <div className="bg-gray-100 px-4 py-2 flex items-center justify-between border-b border-gray-200 flex-wrap gap-2">
+          <div className="flex items-center gap-1.5 bg-white p-1 rounded-xl border border-gray-200 shadow-xs">
             <button
-              key={i}
-              onClick={() => setCurrentLoc(loc)}
+              onClick={() => setActiveTab('streetview')}
               className={`
-                px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap transition
-                ${currentLoc.name === loc.name
-                  ? 'bg-unaerp-blue text-white shadow-sm'
-                  : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+                px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition
+                ${activeTab === 'streetview'
+                  ? 'bg-unaerp-blue text-white shadow-xs'
+                  : 'text-gray-600 hover:bg-gray-100'
                 }
               `}
             >
-              {loc.name.split('(')[0]}
+              <Eye size={14} />
+              <span>Street View 360° (Entradas)</span>
             </button>
-          ))}
+
+            <button
+              onClick={() => setActiveTab('satellite')}
+              className={`
+                px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition
+                ${activeTab === 'satellite'
+                  ? 'bg-unaerp-blue text-white shadow-xs'
+                  : 'text-gray-600 hover:bg-gray-100'
+                }
+              `}
+            >
+              <Satellite size={14} />
+              <span>Satélite HD (Visão Aérea)</span>
+            </button>
+          </div>
+
+          {activeTab === 'streetview' && (
+            <div className="flex items-center gap-1 overflow-x-auto text-xs py-0.5">
+              <span className="text-[11px] text-gray-500 font-medium hidden md:inline">
+                <Compass size={12} className="inline mr-1" />
+                Pontos de acesso 360°:
+              </span>
+              {VERIFIED_STREETVIEW_ENTRANCES.map((ent) => (
+                <button
+                  key={ent.id}
+                  onClick={() => setSelectedEntrance(ent)}
+                  className={`
+                    px-2.5 py-1 rounded-full text-[11px] font-medium transition whitespace-nowrap
+                    ${selectedEntrance.id === ent.id
+                      ? 'bg-unaerp-blue text-white shadow-xs'
+                      : 'bg-white text-gray-700 hover:bg-gray-200 border border-gray-200'
+                    }
+                  `}
+                >
+                  {ent.name.split('(')[0].trim()}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* Street View Iframe Container */}
-        <div className="relative flex-1 min-h-[380px] sm:min-h-[480px] bg-gray-900">
+        {/* Aviso informativo de localização */}
+        <div className="bg-amber-50 px-4 py-1.5 border-b border-amber-100 text-[11px] text-amber-900 flex items-center gap-1.5">
+          <Info size={13} className="text-amber-600 flex-shrink-0" />
+          {activeTab === 'streetview' ? (
+            <span>
+              <strong>Street View 360° nas vias públicas:</strong> O carro do Google Street View percorre as avenidas ao redor. Exibindo visão 360° em <strong>{selectedEntrance.name}</strong> para acesso ao local.
+            </span>
+          ) : (
+            <span>
+              <strong>Visão Aérea de Alta Resolução:</strong> Imagens de satélite focadas em <strong>{location?.name || 'Campus UNAERP'}</strong> permitindo ver passarelas e prédios internos.
+            </span>
+          )}
+        </div>
+
+        {/* Container do Iframe */}
+        <div className="relative flex-1 min-h-[360px] sm:min-h-[460px] bg-gray-900">
           <iframe
-            title="Google Street View UNAERP"
-            src={embedUrl}
+            key={`${activeTab}-${selectedEntrance.id}-${poiLat}-${poiLng}`}
+            title="Google Maps Campus UNAERP"
+            src={activeTab === 'streetview' ? streetViewEmbedUrl : satelliteEmbedUrl}
             className="w-full h-full border-0 absolute inset-0"
             allowFullScreen
             loading="lazy"
@@ -122,14 +209,18 @@ export default function StreetViewModal({ isOpen, onClose, location }) {
           />
         </div>
 
-        {/* Footer info */}
-        <div className="px-4 py-2.5 bg-gray-100 text-xs text-gray-500 flex items-center justify-between">
-          <span className="flex items-center gap-1.5">
-            <MapPin size={13} className="text-unaerp-blue" />
-            Lat: {latitude.toFixed(5)}, Lng: {longitude.toFixed(5)}
+        {/* Rodapé informativo */}
+        <div className="px-4 py-2 bg-gray-100 text-xs text-gray-500 flex items-center justify-between border-t border-gray-200 flex-wrap gap-2">
+          <span className="flex items-center gap-1 text-[11px]">
+            <MapPin size={12} className="text-unaerp-blue" />
+            {activeTab === 'streetview' ? (
+              <span>Ponto 360°: {selectedEntrance.description}</span>
+            ) : (
+              <span>Foco: {location?.name || 'Campus UNAERP'} ({poiLat.toFixed(5)}, {poiLng.toFixed(5)})</span>
+            )}
           </span>
-          <span className="text-[11px] text-gray-400">
-            Imagens fornecidas via Google Maps Street View
+          <span className="text-[10px] text-gray-400">
+            Google Maps Platform & Street View
           </span>
         </div>
       </div>

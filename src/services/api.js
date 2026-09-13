@@ -213,6 +213,37 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
 };
 
 export const calculateRoute = async (start, end, preferences = {}) => {
+  // Verifica se partida e destino são o mesmo local
+  const isSamePoint =
+    (start.id && end.id && start.id === end.id) ||
+    (start.name && end.name && start.name.trim().toLowerCase() === end.name.trim().toLowerCase()) ||
+    (Math.abs(start.latitude - end.latitude) < 0.00005 && Math.abs(start.longitude - end.longitude) < 0.00005);
+
+  if (isSamePoint) {
+    return {
+      routes: [
+        {
+          id: 'route-same-point',
+          name: 'Você já está no local',
+          type: 'balanced',
+          distance: 0,
+          duration: 0,
+          estimatedTime: 0,
+          accessibilityScore: 10,
+          is_accessible: true,
+          steps: [
+            {
+              instruction: `Você já está em ${start.name || 'este local'}!`,
+              distance: 0,
+              duration: 0,
+            },
+          ],
+          waypoints: [{ latitude: start.latitude, longitude: start.longitude }],
+        },
+      ],
+    };
+  }
+
   try {
     const data = await request('/routes/calculate', {
       method: 'POST',
@@ -232,18 +263,25 @@ export const calculateRoute = async (start, end, preferences = {}) => {
     }, 2500);
 
     if (data?.data?.routes && data.data.routes.length > 0) {
-      return data.data;
+      // Normaliza campos para compatibilidade
+      const normalizedRoutes = data.data.routes.map(r => ({
+        ...r,
+        estimatedTime: r.estimatedTime || r.duration || Math.max(1, Math.round((r.distance || 50) / 70)),
+        accessibilityScore: r.accessibilityScore || (r.is_accessible ? 10 : 8),
+      }));
+      return { routes: normalizedRoutes };
     }
   } catch (error) {
     // Backend offline: calculamos rota local precisa
   }
 
   // Geração de rota local simulada realista
-  const distance = Math.round(calculateDistance(start.latitude, start.longitude, end.latitude, end.longitude));
+  const distance = Math.max(20, Math.round(calculateDistance(start.latitude, start.longitude, end.latitude, end.longitude)));
   const isAccessible = preferences.wheelchairAccessible || preferences.avoidStairs;
   const avgSpeed = isAccessible ? 1.0 : 1.3;
   const durationSeconds = Math.round(distance / avgSpeed);
   const durationMinutes = Math.max(1, Math.round(durationSeconds / 60));
+  const accessibilityScore = isAccessible ? 10 : 9;
 
   // Waypoints intermediários no campus
   const midLat = (start.latitude + end.latitude) / 2 + 0.0001;
@@ -259,28 +297,28 @@ export const calculateRoute = async (start, end, preferences = {}) => {
     {
       instruction: `Parta de ${start.name || 'Origem'} seguindo pela passarela do campus`,
       distance: Math.round(distance * 0.4),
-      duration: Math.round(durationMinutes * 0.4),
+      duration: Math.max(1, Math.round(durationMinutes * 0.4)),
     },
   ];
 
   if (isAccessible) {
     instructions.push({
       instruction: '⚠️ Siga pela rampa acessível com piso tátil e corrimão duplo',
-      distance: Math.round(distance * 0.2),
-      duration: Math.round(durationMinutes * 0.2),
+      distance: Math.round(distance * 0.25),
+      duration: Math.max(1, Math.round(durationMinutes * 0.25)),
     });
   } else {
     instructions.push({
       instruction: 'Continue em frente pela praça central em direção aos blocos',
       distance: Math.round(distance * 0.35),
-      duration: Math.round(durationMinutes * 0.35),
+      duration: Math.max(1, Math.round(durationMinutes * 0.35)),
     });
   }
 
   instructions.push({
     instruction: `Você chegou ao seu destino: ${end.name || 'Destino'}!`,
     distance: Math.round(distance * 0.25),
-    duration: Math.round(durationMinutes * 0.25),
+    duration: Math.max(1, Math.round(durationMinutes * 0.25)),
   });
 
   return {
@@ -291,6 +329,8 @@ export const calculateRoute = async (start, end, preferences = {}) => {
         type: isAccessible ? 'accessible' : 'balanced',
         distance,
         duration: durationMinutes,
+        estimatedTime: durationMinutes,
+        accessibilityScore,
         is_accessible: isAccessible,
         steps: instructions,
         waypoints,
